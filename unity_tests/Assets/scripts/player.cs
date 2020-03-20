@@ -24,10 +24,24 @@ public class player : MonoBehaviour
         Controls.InGame.RotateCamera.performed += ctx => Camera.Input = ctx.ReadValue<Vector2>();
         Controls.InGame.RotateCamera.canceled += _ => Camera.Input = Vector2.zero;
 
-        Controls.InGame.Move.performed += ctx => Force = ctx.ReadValue<Vector2>()*Sensitivity;
+        Controls.InGame.Move.performed += ctx => SetForce(ctx.ReadValue<Vector2>());
         Controls.InGame.Move.canceled += _ => Force = Vector2.zero;
 
         PlayerAnimator = GetComponentInChildren<Animator>();
+    }
+
+    void SetForce(Vector2 Input)
+    {
+        Vector3 Right = Camera.transform.right;
+        Right.y = 0;
+        Right.Normalize();
+        Vector3 Forward = Camera.transform.forward;
+        Forward.y = 0;
+        Forward.Normalize();
+        Vector3 Direction = Input.x*Right + Input.y*Forward;
+        Force = new Vector2(Direction.x, Direction.z);
+        Force *= Sensitivity;
+        //Force = Input*Sensitivity;
     }
 
     void Update()
