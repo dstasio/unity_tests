@@ -20,6 +20,22 @@
                     "expectedControlType": "",
                     "processors": "",
                     "interactions": ""
+                },
+                {
+                    "name": "Jump",
+                    "type": "Button",
+                    "id": "ac3170f3-6673-41ba-9f55-b76ff06bd38c",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": ""
+                },
+                {
+                    "name": "Lower",
+                    "type": "Button",
+                    "id": "57ef6bda-9382-4409-972b-319d8260b098",
+                    "expectedControlType": "",
+                    "processors": "",
+                    "interactions": ""
                 }
             ],
             "bindings": [
@@ -50,7 +66,7 @@
                     "id": "8dabd125-5aca-4950-8a41-a16540fab5f8",
                     "path": "<Gamepad>/leftStick",
                     "interactions": "",
-                    "processors": "",
+                    "processors": "StickDeadzone",
                     "groups": "gamepad",
                     "action": "Move",
                     "isComposite": false,
@@ -110,6 +126,39 @@
                     "action": "Move",
                     "isComposite": false,
                     "isPartOfComposite": true
+                },
+                {
+                    "name": "",
+                    "id": "ed9f57ac-f851-4a25-8e6b-8816e82b17c9",
+                    "path": "<Gamepad>/buttonSouth",
+                    "interactions": "Tap(duration=0.13)",
+                    "processors": "",
+                    "groups": "gamepad",
+                    "action": "Jump",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "0d3aa6ec-de83-48d1-a643-ebe3646fe225",
+                    "path": "<Keyboard>/space",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "keyboard_mouse",
+                    "action": "Jump",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                },
+                {
+                    "name": "",
+                    "id": "1b0977a1-343e-4769-8bc7-eb4085aad20a",
+                    "path": "<Gamepad>/buttonEast",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "gamepad",
+                    "action": "Lower",
+                    "isComposite": false,
+                    "isPartOfComposite": false
                 }
             ]
         }
