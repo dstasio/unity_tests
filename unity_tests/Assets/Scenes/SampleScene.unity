@@ -1034,9 +1034,10 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   PlayerAnimator: {fileID: 0}
   PlayerTransform: {fileID: 185341992}
-  CC: {fileID: 1351879379}
   Camera: {fileID: 963194229}
   Sensitivity: 3000
+  ColliderCenter: {x: 0, y: 0.857, z: 0.04}
+  ColliderRadius: {x: 0.35, y: 0.853, z: 0.4}
   Mass: 70
   FrictionCoefficientGround: 0.9
   FrictionCoefficientAir: 0.3
@@ -1052,7 +1053,7 @@ CharacterController:
   m_GameObject: {fileID: 1351879376}
   m_Material: {fileID: 0}
   m_IsTrigger: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 2
   m_Height: 1.68
   m_Radius: 0.38269016

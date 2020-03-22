@@ -2,28 +2,35 @@
 
 using UnityEngine;
 using UnityEngine.InputSystem;
+using v2 = UnityEngine.Vector2;
+using v3 = UnityEngine.Vector3;
 
 public class player : MonoBehaviour
 {
+    struct collider_box
+    {
+        v3 Center;
+        v3 Radius;
+    }
     public Animator PlayerAnimator;
     public Transform PlayerTransform;
-    public CharacterController CC;
+    //public CharacterController CC;
     public camera Camera;
-    public float Sensitivity = 500.0f;
+    public float Sensitivity = 3000.0f;
+    public v3 ColliderCenter;
+    public v3 ColliderRadius;
 
     game_controls Controls;
 
-    Vector3 Force;
-    Vector3 ddPos;
-    Vector3 dPos;
-    Vector3 LastPos;
+    v3 Force;
+    v3 ddPos;
+    v3 dPos;
     public float Mass = 70;
     public float FrictionCoefficientGround = 0.9f;
-    public float FrictionCoefficientAir = 0.3f;
-    public float Speed;
-    public float JumpForce = 30f;
-    public float Gravity = 9.81f;
+    public float JumpForce = 13000f;
+    public float Gravity = 26f;
     bool IsGrounded = true;
+    float Speed;
 
     void Awake()
     {
@@ -38,23 +45,22 @@ public class player : MonoBehaviour
         Controls.InGame.Jump.canceled += _ => Force.y = 0;
 
         PlayerAnimator = GetComponentInChildren<Animator>();
-        CC = GetComponent<CharacterController>();
     }
     
-    void Move(Vector3 Delta)
+    void Move(v3 Delta)
     {
         transform.position += Delta;
     }
 
-    void SetForce(Vector2 Input)
+    void SetForce(v2 Input)
     {
-        Vector3 Right = Camera.transform.right;
+        v3 Right = Camera.transform.right;
         Right.y = 0;
         Right.Normalize();
-        Vector3 Forward = Camera.transform.forward;
+        v3 Forward = Camera.transform.forward;
         Forward.y = 0;
         Forward.Normalize();
-        Vector3 Direction = Input.x*Right + Input.y*Forward;
+        v3 Direction = Input.x*Right + Input.y*Forward;
         Force.x = Direction.x*Sensitivity;
         Force.z = Direction.z*Sensitivity;
 
@@ -65,7 +71,7 @@ public class player : MonoBehaviour
     {
         float Weight = Mass * 9.81f;
         float FrictionCoefficient = FrictionCoefficientGround;
-        Vector3 Friction = -dPos * Weight * FrictionCoefficient;
+        v3 Friction = -dPos * Weight * FrictionCoefficient;
         if (IsGrounded)
         {
             Friction.y = 0;
@@ -75,20 +81,24 @@ public class player : MonoBehaviour
             Friction.y = -Mass*Gravity;
             Force.y = 0;
         }
-        Vector3 TotalForce = Force + Friction;
+        v3 TotalForce = Force + Friction;
         ddPos = TotalForce / Mass;
     }
 
+    float CheckDistance;
     void FixedUpdate()
     {
         float t = Time.fixedDeltaTime;
-        LastPos = transform.position;
-        CC.Move(dPos*t + 0.5f*ddPos*t*t);
+        RaycastHit Ground;
+
+        transform.position += dPos*t + 0.5f*ddPos*t*t;
         dPos += ddPos*t;
-        IsGrounded = CheckGround();
-        if (IsGrounded)
+        CheckDistance = Mathf.Max(v3.Dot((dPos*t + 0.5f*ddPos*t*t), v3.down), 0.1f);
+        IsGrounded = CheckGround(CheckDistance, out Ground);
+        if (IsGrounded && (dPos.y < 0))
         {
-            dPos.y = 0;
+            Debug.Log(Ground.distance);
+            dPos.y = Ground.distance > 0.01f ? -(Ground.distance-0.005f)/t : 0;
             ddPos.y = 0;
         }
 
@@ -101,17 +111,17 @@ public class player : MonoBehaviour
         }
     }
 
-    bool CheckGround()
+    bool CheckGround(float MaxDistance, out RaycastHit Hit)
+    {
+        // TODO(dave): MaxDistance based on current speed
+        bool IsHit = Physics.BoxCast(ColliderCenter+transform.position, ColliderRadius, Vector3.down, out Hit, PlayerTransform.rotation, MaxDistance, 1 << LayerMask.NameToLayer("environment"));
+
+        return(IsHit);
+    }
+    bool CheckGround(float MaxDistance)
     {
         RaycastHit Hit;
-        float MaxDistance = 0.1f;
-        bool IsHit = Physics.BoxCast(CC.center+transform.position, new Vector3(CC.radius, CC.height/2, CC.radius), Vector3.down, out Hit, PlayerTransform.rotation, MaxDistance, 1 << LayerMask.NameToLayer("environment"));
-
-        if(IsHit)
-        {
-            Debug.Log("Grounded");
-        }
-
+        bool IsHit = CheckGround(MaxDistance, out Hit);
         return(IsHit);
     }
 
@@ -124,16 +134,23 @@ public class player : MonoBehaviour
     }
 
     private void OnDrawGizmos() {
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawWireCube(transform.position + ColliderCenter, ColliderRadius*2);
+
         RaycastHit Hit;
-        float MaxDistance = 0.03f;
-        bool IsHit = Physics.BoxCast(CC.center+transform.position, new Vector3(CC.radius, CC.height/2, CC.radius), Vector3.down, out Hit, PlayerTransform.rotation, MaxDistance, 1 << LayerMask.NameToLayer("environment"));
+        float MaxDistance = CheckDistance;
+        bool IsHit = Physics.BoxCast(ColliderCenter+transform.position, ColliderRadius, Vector3.down, out Hit, PlayerTransform.rotation, MaxDistance, 1 << LayerMask.NameToLayer("environment"));
 
         Gizmos.color = Color.green;
         if(IsHit)
         {
             Gizmos.color = Color.red;
-            Gizmos.DrawWireCube(CC.center+transform.position + Vector3.down*(Hit.distance), new Vector3(CC.radius*2, CC.height, CC.radius*2));
+            Gizmos.DrawWireCube(transform.position+ColliderCenter + Vector3.down*(Hit.distance), ColliderRadius*2);
         }
-        Gizmos.DrawRay(CC.center+transform.position, Vector3.down*(MaxDistance+CC.height/2));
+        Gizmos.DrawRay(ColliderCenter+transform.position, Vector3.down*(MaxDistance+ColliderRadius.y));
+
+        Gizmos.color = Color.blue;
+        v3 Velocity = dPos*Time.fixedDeltaTime + 0.5f*ddPos*Time.fixedDeltaTime*Time.fixedDeltaTime;
+        Gizmos.DrawWireCube(transform.position+ColliderCenter+Velocity, ColliderRadius*2);
     }
 }
