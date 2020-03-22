@@ -144,7 +144,7 @@ public class @game_controls : IInputActionCollection, IDisposable
                     ""name"": """",
                     ""id"": ""ed9f57ac-f851-4a25-8e6b-8816e82b17c9"",
                     ""path"": ""<Gamepad>/buttonSouth"",
-                    ""interactions"": ""Tap(duration=0.13)"",
+                    ""interactions"": """",
                     ""processors"": """",
                     ""groups"": ""gamepad"",
                     ""action"": ""Jump"",
