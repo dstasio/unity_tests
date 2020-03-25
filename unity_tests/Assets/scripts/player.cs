@@ -12,12 +12,14 @@ public class player : MonoBehaviour
         v3 Center;
         v3 Radius;
     }
+
     public Animator PlayerAnimator;
     public Transform PlayerTransform;
     public camera Camera;
     public float Sensitivity = 3000.0f;
     public v3 ColliderCenter;
     public v3 ColliderRadius;
+    public v3 ColliderRadius2;
 
     game_controls Controls;
 
@@ -97,6 +99,7 @@ public class player : MonoBehaviour
             //v3 Correction = Step - (Step.normalized*Collision.distance);
             Step += Correction;
         }
+        Debug.DrawLine(transform.position, transform.position+Step*50f, Color.blue, 0, false);
         transform.position += Step;
         dPos += ddPos*t;
         CheckDistance = Mathf.Max(v3.Dot((dPos*t + 0.5f*ddPos*t*t), v3.down), 0.1f);
@@ -115,7 +118,7 @@ public class player : MonoBehaviour
             dPos = Vector2.zero;
         }
     }
-
+    
     bool CheckCollision(v3 Step, out RaycastHit Hit)
     {
         Hit = new RaycastHit();
@@ -132,40 +135,39 @@ public class player : MonoBehaviour
         Vertices[6] = new Vector3(-ColliderRadius.x, -ColliderRadius.y,  ColliderRadius.z);
         Vertices[7] = new Vector3(-ColliderRadius.x, -ColliderRadius.y, -ColliderRadius.z);
         
-        bool Found = false;
+        bool FoundFirst = false;
         float FrontFaceDistance = 0;
         for (int i = 0, NChecked = 0; (i < Vertices.Length) && (NChecked < 4); ++i)
         {
             v3 Vertex = Vertices[i];
-            Vertex = (PlayerTransform.rotation*Vertex);
-            if (v3.Dot(Vertex, Step) > 0)
+            Vertex = PlayerTransform.rotation*Vertex;
+            v3 Pivot = PlayerTransform.rotation*ColliderCenter;
+            v3 ForwardAlignedStepDir = v3.Dot(Step, PlayerTransform.forward)*PlayerTransform.forward;
+            ForwardAlignedStepDir.Normalize();
+            float DistanceFromCenter = v3.Dot(Vertex, ForwardAlignedStepDir);
+            if (DistanceFromCenter < 0)
             {
-                Collides = Collides || Physics.Raycast(transform.position+ColliderCenter+Vertex, Step.normalized, out CheckHit, Step.magnitude, 1 << LayerMask.NameToLayer("environment"));
-                if (Collides && (!Found || (CheckHit.distance < Hit.distance)))
+                float AbsDistanceFromFront = 2f*Mathf.Abs(DistanceFromCenter);
+                v3 TotalStepForBackface = Step+ForwardAlignedStepDir*AbsDistanceFromFront;
+
+                Debug.DrawLine(transform.position+Pivot+Vertex, transform.position+Pivot+Vertex+TotalStepForBackface, Color.green, 0, false);
+                Debug.DrawLine(transform.position+Pivot+Vertex+AbsDistanceFromFront*ForwardAlignedStepDir, transform.position+Pivot+Vertex+AbsDistanceFromFront*ForwardAlignedStepDir+Step, Color.yellow, 0, false);
+                Debug.DrawLine(transform.position+Pivot+Vertex, transform.position+Pivot+Vertex+AbsDistanceFromFront*ForwardAlignedStepDir, Color.cyan, 0, false);
+               
+                bool CurrentVertexCollides = Physics.Raycast(transform.position+Pivot+Vertex, TotalStepForBackface.normalized, out CheckHit, TotalStepForBackface.magnitude, 1 << LayerMask.NameToLayer("environment"));
+                CheckHit.distance = Mathf.Abs(CheckHit.distance);
+                CheckHit.distance -= AbsDistanceFromFront;
+                CheckHit.distance = v3.Dot(CheckHit.distance*ForwardAlignedStepDir, Step.normalized);
+
+                if (CurrentVertexCollides && (!FoundFirst || (CheckHit.distance < Hit.distance)))
                 {
+                    Debug.DrawLine(transform.position+Pivot+Vertex, transform.position+Pivot+Vertex+(CheckHit.distance+AbsDistanceFromFront)*TotalStepForBackface.normalized, Color.red, 0, false);
                     Hit = CheckHit;
-                    Found = true;
+                    Collides = CurrentVertexCollides;
+                    FoundFirst = true;
                 }
                 FrontFaceDistance += v3.Dot(Vertex, Step.normalized);
-                //if (NChecked == 0)
-                //{
-                //    FrontFaceDistance = v3.Dot(Vertex, Step.normalized);
-                //}
-                //else
-                //{
-                //    Debug.Assert(Mathf.Abs(FrontFaceDistance-v3.Dot(Vertex, Step.normalized)) < 0.5f);
-                //}
                 NChecked++;
-            }
-        }
-
-        if (!Collides)
-        {
-            FrontFaceDistance /= 4f;
-            Collides = Physics.Raycast(transform.position+ColliderCenter, Step.normalized, out Hit, Step.magnitude+FrontFaceDistance, 1 << LayerMask.NameToLayer("environment"));
-            if (Collides)
-            {
-                Hit.distance -= FrontFaceDistance;
             }
         }
 
@@ -197,7 +199,7 @@ public class player : MonoBehaviour
         Matrix4x4 PlayerMatrix = Matrix4x4.Translate(transform.position)*Matrix4x4.Rotate(PlayerTransform.rotation);
         Gizmos.matrix = PlayerMatrix;
 
-        Gizmos.color = Color.yellow;
+        Gizmos.color = Color.blue;
         Gizmos.DrawWireCube(ColliderCenter, ColliderRadius*2);
 
         //RaycastHit Hit;
@@ -221,14 +223,14 @@ public class player : MonoBehaviour
         {
             Gizmos.color = Color.red;
             Gizmos.matrix = Matrix4x4.identity;
-            Gizmos.DrawRay(Collision.point, Collision.normal);
+            Gizmos.DrawRay(Collision.point, 0.3f*Collision.normal);
             Gizmos.matrix = PlayerMatrix;
 
             Gizmos.DrawWireCube(ColliderCenter + Step.normalized*(Collision.distance), ColliderRadius*2);
         }
         //Gizmos.DrawRay(ColliderCenter, Vector3.down*(MaxDistance+ColliderRadius.y));
 
-        Gizmos.color = Color.blue;
+        Gizmos.color = Color.yellow;
         Gizmos.DrawWireCube(ColliderCenter+Step, ColliderRadius*2);
 
     }
