@@ -22,7 +22,7 @@ public class camera : MonoBehaviour
 
     void Update()
     {
-        float CameraSensitivity = Time.deltaTime * 2.0f * Mathf.PI;
+        float CameraSensitivity = Time.deltaTime * 2.0f * Mathf.PI * 0.3f;
         Yaw += Input.x * CameraSensitivity;
         Pitch += Input.y * CameraSensitivity;
         Pitch = Mathf.Clamp(Pitch, -Mathf.PI / 2.1f, Mathf.PI / 2.1f);
