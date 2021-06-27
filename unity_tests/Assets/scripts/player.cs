@@ -19,7 +19,7 @@ public class player : MonoBehaviour
     public float Sensitivity = 3000.0f;
     public v3 ColliderCenter;
     public v3 ColliderRadius;
-    public v3 ColliderRadius2;
+    private CharacterController controller;
 
     game_controls Controls;
 
@@ -27,10 +27,10 @@ public class player : MonoBehaviour
     v3 ddPos;
     v3 dPos;
     public float Mass = 70;
-    public float FrictionCoefficientGround = 0.9f;
+    public float friction_coefficient_ground = 0.9f;
     public float JumpForce = 13000f;
     public float Gravity = 26f;
-    bool IsGrounded = true;
+    bool is_grounded = true;
     float Speed;
 
     void Awake()
@@ -39,21 +39,18 @@ public class player : MonoBehaviour
         Controls.InGame.RotateCamera.performed += ctx => Camera.Input = ctx.ReadValue<Vector2>();
         Controls.InGame.RotateCamera.canceled += _ => Camera.Input = Vector2.zero;
 
-        Controls.InGame.Move.performed += ctx => SetForce(ctx.ReadValue<Vector2>());
+        Controls.InGame.Move.performed += ctx => set_force(ctx.ReadValue<Vector2>());
         Controls.InGame.Move.canceled += _ => Force = Vector2.zero;
 
-        Controls.InGame.Jump.performed += _ => { Force.y = IsGrounded ? JumpForce : 0; };
+        Controls.InGame.Jump.performed += _ => { Force.y = is_grounded ? JumpForce : 0; };
         Controls.InGame.Jump.canceled += _ => Force.y = 0;
 
         PlayerAnimator = GetComponentInChildren<Animator>();
+
+        controller = GetComponent<CharacterController>();
     }
     
-    void Move(v3 Delta)
-    {
-        transform.position += Delta;
-    }
-
-    void SetForce(v2 Input)
+    void set_force(v2 Input)
     {
         v3 Right = Camera.transform.right;
         Right.y = 0;
@@ -70,121 +67,59 @@ public class player : MonoBehaviour
 
     void Update()
     {
-        float Weight = Mass * 9.81f;
-        float FrictionCoefficient = FrictionCoefficientGround;
-        v3 Friction = -dPos * Weight * FrictionCoefficient;
-        if (IsGrounded)
+        float weight = Mass * 9.81f;
+        float friction_coefficient = friction_coefficient_ground;
+        v3 friction = -dPos * weight * friction_coefficient;
+        if (is_grounded)
         {
-            Friction.y = 0;
+            friction.y = 0;
+            friction.y = -Mass*Gravity;
         }
         else
         {
-            Friction.y = -Mass*Gravity;
+            friction.y = -Mass*Gravity;
             Force.y = 0;
         }
-        v3 TotalForce = Force + Friction;
-        ddPos = TotalForce / Mass;
-    }
+        ddPos = (Force + friction) / Mass;
 
-    float CheckDistance;
-    void FixedUpdate()
-    {
-        float t = Time.fixedDeltaTime;
-        RaycastHit Ground, Collision;
+        float t = Time.deltaTime;
+        float ground_check_distance;
+        RaycastHit ground;
 
-        v3 Step = dPos*t + 0.5f*ddPos*t*t;
-        if (CheckCollision(Step, out Collision))
-        {
-            v3 Correction = -(v3.Dot((Step - Collision.distance*Step.normalized), Collision.normal)-0.05f)*Collision.normal;
-            //v3 Correction = Step - (Step.normalized*Collision.distance);
-            Step += Correction;
-        }
-        Debug.DrawLine(transform.position, transform.position+Step*50f, Color.blue, 0, false);
-        transform.position += Step;
+        v3 step = dPos*t + 0.5f*ddPos*t*t;
         dPos += ddPos*t;
-        CheckDistance = Mathf.Max(v3.Dot((dPos*t + 0.5f*ddPos*t*t), v3.down), 0.1f);
-        IsGrounded = CheckGround(CheckDistance, out Ground);
-        if (IsGrounded && (dPos.y < 0))
+        // @note: in a normal engine, collision calculations would go here!
+        Debug.DrawLine(transform.position, transform.position+step*50f, Color.blue, 0, false);
+        CollisionFlags collisions = controller.Move(step);
+
+        ground_check_distance = Mathf.Max(v3.Dot((dPos*t + 0.5f*ddPos*t*t), v3.down), 0.1f);
+        ground_check_distance = 0.1f;
+        is_grounded = check_ground(ground_check_distance, out ground);
+
+        if (is_grounded && (dPos.y < 0))
         {
-            dPos.y = Ground.distance > 0.01f ? -(Ground.distance-0.005f)/t : 0;
+            dPos.y = ground.distance > 0.01f ? -(ground.distance-0.005f)/t : 0;
             ddPos.y = 0;
         }
 
-        Speed = dPos.magnitude;
+        Speed = new v2(dPos.x, dPos.z).magnitude;
         PlayerAnimator.SetFloat("Speed", Speed);
 
         if (Speed < 0.01)
         {
-            dPos = Vector2.zero;
+            dPos.x = 0;
+            dPos.z = 0;
         }
     }
     
-    bool CheckCollision(v3 Step, out RaycastHit Hit)
+    bool check_ground(float max_distance, out RaycastHit hit)
     {
-        Hit = new RaycastHit();
-        RaycastHit CheckHit = new RaycastHit();
-        //bool Collides = Physics.BoxCast(ColliderCenter+transform.position, ColliderRadius, Step.normalized, out Hit, PlayerTransform.rotation, Step.magnitude, 1 << LayerMask.NameToLayer("environment"));
-        bool Collides = false;
-        v3[] Vertices = new v3[8];
-        Vertices[0] = new Vector3( ColliderRadius.x,  ColliderRadius.y,  ColliderRadius.z);
-        Vertices[1] = new Vector3( ColliderRadius.x,  ColliderRadius.y, -ColliderRadius.z);
-        Vertices[2] = new Vector3( ColliderRadius.x, -ColliderRadius.y,  ColliderRadius.z);
-        Vertices[3] = new Vector3( ColliderRadius.x, -ColliderRadius.y, -ColliderRadius.z);
-        Vertices[4] = new Vector3(-ColliderRadius.x,  ColliderRadius.y,  ColliderRadius.z);
-        Vertices[5] = new Vector3(-ColliderRadius.x,  ColliderRadius.y, -ColliderRadius.z);
-        Vertices[6] = new Vector3(-ColliderRadius.x, -ColliderRadius.y,  ColliderRadius.z);
-        Vertices[7] = new Vector3(-ColliderRadius.x, -ColliderRadius.y, -ColliderRadius.z);
-        
-        bool FoundFirst = false;
-        float FrontFaceDistance = 0;
-        for (int i = 0, NChecked = 0; (i < Vertices.Length) && (NChecked < 4); ++i)
-        {
-            v3 Vertex = Vertices[i];
-            Vertex = PlayerTransform.rotation*Vertex;
-            v3 Pivot = PlayerTransform.rotation*ColliderCenter;
-            v3 ForwardAlignedStepDir = v3.Dot(Step, PlayerTransform.forward)*PlayerTransform.forward;
-            ForwardAlignedStepDir.Normalize();
-            float DistanceFromCenter = v3.Dot(Vertex, ForwardAlignedStepDir);
-            if (DistanceFromCenter < 0)
-            {
-                float AbsDistanceFromFront = 2f*Mathf.Abs(DistanceFromCenter);
-                v3 TotalStepForBackface = Step+ForwardAlignedStepDir*AbsDistanceFromFront;
+        v3 p1 = transform.position + controller.center + v3.down*(controller.height*0.5f - controller.radius);
+        v3 p2 = transform.position + controller.center + v3.up  *(controller.height*0.5f - controller.radius);
+        bool is_hit = Physics.CapsuleCast(p1, p2, controller.radius, Vector3.down, out hit, max_distance, 1 << LayerMask.NameToLayer("environment"));
+        Debug.DrawRay(p1, v3.down * (max_distance+controller.radius), Color.red, 1000);
 
-                Debug.DrawLine(transform.position+Pivot+Vertex, transform.position+Pivot+Vertex+TotalStepForBackface, Color.green, 0, false);
-                Debug.DrawLine(transform.position+Pivot+Vertex+AbsDistanceFromFront*ForwardAlignedStepDir, transform.position+Pivot+Vertex+AbsDistanceFromFront*ForwardAlignedStepDir+Step, Color.yellow, 0, false);
-                Debug.DrawLine(transform.position+Pivot+Vertex, transform.position+Pivot+Vertex+AbsDistanceFromFront*ForwardAlignedStepDir, Color.cyan, 0, false);
-               
-                bool CurrentVertexCollides = Physics.Raycast(transform.position+Pivot+Vertex, TotalStepForBackface.normalized, out CheckHit, TotalStepForBackface.magnitude, 1 << LayerMask.NameToLayer("environment"));
-                CheckHit.distance = Mathf.Abs(CheckHit.distance);
-                CheckHit.distance -= AbsDistanceFromFront;
-                CheckHit.distance = v3.Dot(CheckHit.distance*ForwardAlignedStepDir, Step.normalized);
-
-                if (CurrentVertexCollides && (!FoundFirst || (CheckHit.distance < Hit.distance)))
-                {
-                    Debug.DrawLine(transform.position+Pivot+Vertex, transform.position+Pivot+Vertex+(CheckHit.distance+AbsDistanceFromFront)*TotalStepForBackface.normalized, Color.red, 0, false);
-                    Hit = CheckHit;
-                    Collides = CurrentVertexCollides;
-                    FoundFirst = true;
-                }
-                FrontFaceDistance += v3.Dot(Vertex, Step.normalized);
-                NChecked++;
-            }
-        }
-
-        return(Collides);
-    }
-
-    bool CheckGround(float MaxDistance, out RaycastHit Hit)
-    {
-        bool IsHit = Physics.BoxCast(ColliderCenter+transform.position, ColliderRadius, Vector3.down, out Hit, PlayerTransform.rotation, MaxDistance, 1 << LayerMask.NameToLayer("environment"));
-
-        return(IsHit);
-    }
-    bool CheckGround(float MaxDistance)
-    {
-        RaycastHit Hit;
-        bool IsHit = CheckGround(MaxDistance, out Hit);
-        return(IsHit);
+        return is_hit;
     }
 
     private void OnEnable() {
@@ -201,37 +136,8 @@ public class player : MonoBehaviour
 
         Gizmos.color = Color.blue;
         Gizmos.DrawWireCube(ColliderCenter, ColliderRadius*2);
+    }
 
-        //RaycastHit Hit;
-        //float MaxDistance = CheckDistance;
-        //bool IsHit = Physics.BoxCast(ColliderCenter, ColliderRadius, Vector3.down, out Hit, PlayerTransform.//rotation, MaxDistance, 1 << LayerMask.NameToLayer("environment"));
-//
-        //Gizmos.color = Color.green;
-        //if(IsHit)
-        //{
-        //    Gizmos.color = Color.red;
-        //    Gizmos.DrawWireCube(ColliderCenter + Vector3.down*(Hit.distance), ColliderRadius*2);
-        //}
-        //Gizmos.DrawRay(ColliderCenter, Vector3.down*(MaxDistance+ColliderRadius.y));
-
-        Gizmos.color = Color.green;
-        RaycastHit Collision;
-        v3 Step = dPos*Time.fixedDeltaTime + ddPos*Time.fixedDeltaTime*Time.fixedDeltaTime;
-        bool Collides = CheckCollision(Step, out Collision);
-        Step = PlayerTransform.worldToLocalMatrix*Step;
-        if (Collides)
-        {
-            Gizmos.color = Color.red;
-            Gizmos.matrix = Matrix4x4.identity;
-            Gizmos.DrawRay(Collision.point, 0.3f*Collision.normal);
-            Gizmos.matrix = PlayerMatrix;
-
-            Gizmos.DrawWireCube(ColliderCenter + Step.normalized*(Collision.distance), ColliderRadius*2);
-        }
-        //Gizmos.DrawRay(ColliderCenter, Vector3.down*(MaxDistance+ColliderRadius.y));
-
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireCube(ColliderCenter+Step, ColliderRadius*2);
-
+    void OnGUI() {
     }
 }
